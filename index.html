@@ -163,6 +163,12 @@
     color:var(--parchment); border-radius:8px; padding:11px 13px;
     font-family:'JetBrains Mono', monospace; outline:none; margin-bottom:16px;
   }
+  .owner-dialog label{
+    display:block; margin-bottom:10px;
+    font-family:'JetBrains Mono', monospace; font-size:10px;
+    color:var(--muted); text-transform:uppercase; letter-spacing:.06em;
+  }
+  .owner-dialog label input{margin-top:5px;}
   .owner-dialog input:focus{border-color:var(--gold-dim);}
 
   /* ---------- Main ---------- */
@@ -290,6 +296,7 @@
     <div class="data-tools owner-only">
       <button class="new-cat-btn" id="exportDataBtn">Exporter data</button>
       <button class="new-cat-btn" id="importDataBtn">Importer data</button>
+      <button class="new-cat-btn" id="githubSyncBtn">GitHub sync</button>
       <input type="file" id="importDataFile" accept="application/json" hidden>
     </div>
 
@@ -305,12 +312,15 @@
 <script>
 const STORAGE_KEY = 'category-tree';
 const DATA_FILE = 'grimoire-data.json';
+const DATA_UPDATED_KEY = 'grimoire-data-updated-at';
+const GITHUB_SYNC_KEY = 'grimoire-github-sync';
 const OWNER_HASH_KEY = 'grimoire-owner-hash';
 const OWNER_SESSION_KEY = 'grimoire-owner-unlocked';
 let nodes = null;
 let selectedId = null;
 let openCats = new Set();
 let bundledData = null;
+let githubPublishing = false;
 
 const DEFAULT_NODES = [
   { id:'fleau', name:'Fléau', parentId:null, color:'#9a2a3a' },
@@ -338,6 +348,21 @@ async function loadBundledData(){
     bundledData = {};
   }
   return bundledData;
+}
+
+async function useBundledDataIfNewer(){
+  const data = await loadBundledData();
+  if(!data.nodes || !data.entries || !data.exportedAt) return;
+
+  const remoteTime = Date.parse(data.exportedAt) || 0;
+  const localTime = Date.parse(localStorage.getItem(DATA_UPDATED_KEY) || '') || 0;
+  if(remoteTime <= localTime) return;
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data.nodes));
+  Object.keys(data.entries).forEach(id=>{
+    localStorage.setItem('entries:'+id, JSON.stringify(Array.isArray(data.entries[id]) ? data.entries[id] : []));
+  });
+  localStorage.setItem(DATA_UPDATED_KEY, data.exportedAt);
 }
 
 async function loadTree(){
@@ -393,6 +418,7 @@ async function readStoredValue(key){
 
 async function writeStoredValue(key, value){
   localStorage.setItem(key, value);
+  localStorage.setItem(DATA_UPDATED_KEY, new Date().toISOString());
   if(window.storage && typeof window.storage.set === 'function'){
     await window.storage.set(key, value, false);
   }
@@ -422,7 +448,7 @@ async function exportDataFile(){
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-  await ownerAlert('Export terminé', 'Place le fichier téléchargé dans le dossier data/ de ton dépôt GitHub, sous le nom grimoire-data.json.');
+  await ownerAlert('Export terminé', 'Place le fichier téléchargé à côté de index.html dans ton dépôt GitHub, sous le nom grimoire-data.json.');
 }
 
 async function importDataFile(file){
@@ -441,6 +467,86 @@ async function importDataFile(file){
   openCats.clear();
   renderTree();
   await renderMain();
+}
+
+function loadGithubConfig(){
+  try{
+    return JSON.parse(localStorage.getItem(GITHUB_SYNC_KEY) || '{}');
+  }catch(e){
+    return {};
+  }
+}
+
+function saveGithubConfig(config){
+  localStorage.setItem(GITHUB_SYNC_KEY, JSON.stringify(config));
+}
+
+function hasGithubConfig(){
+  const cfg = loadGithubConfig();
+  return !!(cfg.owner && cfg.repo && cfg.branch && cfg.token);
+}
+
+function toBase64Utf8(str){
+  return btoa(unescape(encodeURIComponent(str)));
+}
+
+async function publishGithubData({ silent=false } = {}){
+  if(githubPublishing) return false;
+  const cfg = loadGithubConfig();
+  if(!cfg.owner || !cfg.repo || !cfg.branch || !cfg.token){
+    if(!silent) await ownerAlert('Sync non configurée', 'Clique sur GitHub sync et renseigne ton dépôt ainsi que ton token.');
+    return false;
+  }
+
+  githubPublishing = true;
+  try{
+    const apiUrl = `https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${DATA_FILE}`;
+    const getUrl = `${apiUrl}?ref=${encodeURIComponent(cfg.branch)}`;
+    const current = await fetch(getUrl, {
+      headers:{
+        'Accept':'application/vnd.github+json',
+        'Authorization':'Bearer '+cfg.token
+      }
+    });
+    let sha = null;
+    if(current.ok){
+      const currentData = await current.json();
+      sha = currentData.sha || null;
+    }else if(current.status !== 404){
+      throw new Error('Impossible de lire le fichier GitHub');
+    }
+
+    const payload = await collectAllData();
+    const body = {
+      message: 'Update grimoire data',
+      content: toBase64Utf8(JSON.stringify(payload, null, 2)),
+      branch: cfg.branch
+    };
+    if(sha) body.sha = sha;
+
+    const res = await fetch(apiUrl, {
+      method:'PUT',
+      headers:{
+        'Accept':'application/vnd.github+json',
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+cfg.token
+      },
+      body: JSON.stringify(body)
+    });
+    if(!res.ok) throw new Error('Publication GitHub refusée');
+    if(!silent) await ownerAlert('GitHub mis à jour', 'Les autres verront les changements après rechargement de la page.');
+    return true;
+  }catch(e){
+    console.error(e);
+    if(!silent) await ownerAlert('Sync impossible', 'GitHub a refusé la mise à jour. Vérifie le dépôt, la branche et les droits du token.');
+    return false;
+  }finally{
+    githubPublishing = false;
+  }
+}
+
+async function publishGithubDataIfConfigured(){
+  if(hasGithubConfig()) await publishGithubData({ silent:true });
 }
 
 function isOwnerUnlocked(){
@@ -513,6 +619,50 @@ async function ownerConfirm(title, message, confirmText='Supprimer'){
   return await ownerDialog({ title, message, confirmText, danger:true }) === true;
 }
 
+function githubSettingsDialog(){
+  return new Promise(resolve=>{
+    const current = loadGithubConfig();
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="owner-dialog" role="dialog" aria-modal="true">
+        <h2>GitHub sync</h2>
+        <p>Ces infos restent dans ton navigateur. Le token doit avoir le droit de modifier le contenu du dépôt.</p>
+        <label>Propriétaire / owner
+          <input id="ghOwner" type="text" value="${escapeHtml(current.owner || '')}" placeholder="ton-compte-github">
+        </label>
+        <label>Dépôt / repo
+          <input id="ghRepo" type="text" value="${escapeHtml(current.repo || '')}" placeholder="nom-du-repo">
+        </label>
+        <label>Branche
+          <input id="ghBranch" type="text" value="${escapeHtml(current.branch || 'main')}" placeholder="main">
+        </label>
+        <label>Token GitHub
+          <input id="ghToken" type="password" value="${escapeHtml(current.token || '')}" placeholder="github_pat_...">
+        </label>
+        <div class="form-actions">
+          <button class="btn-danger" data-action="clear">Effacer</button>
+          <button class="btn-ghost" data-action="cancel">Annuler</button>
+          <button class="btn-save" data-action="save">Enregistrer</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    const value = id => backdrop.querySelector(id).value.trim();
+    const close = result => { backdrop.remove(); resolve(result); };
+    backdrop.querySelector('[data-action="cancel"]').addEventListener('click', ()=> close(null));
+    backdrop.querySelector('[data-action="clear"]').addEventListener('click', ()=> close({ clear:true }));
+    backdrop.querySelector('[data-action="save"]').addEventListener('click', ()=> close({
+      owner: value('#ghOwner'),
+      repo: value('#ghRepo'),
+      branch: value('#ghBranch') || 'main',
+      token: value('#ghToken')
+    }));
+    backdrop.addEventListener('click', (e)=>{ if(e.target === backdrop) close(null); });
+    backdrop.querySelector('#ghOwner').focus();
+  });
+}
+
 async function ensureOwnerUnlocked(actionText='modifier'){
   if(isOwnerUnlocked()) return true;
 
@@ -580,6 +730,7 @@ async function deleteNode(nodeId){
   nodes = nodes.filter(n=>!ids.includes(n.id));
   if(ids.includes(selectedId)) selectedId = node.parentId && findNode(node.parentId) ? node.parentId : null;
   await saveTree();
+  await publishGithubDataIfConfigured();
   renderTree();
   await renderMain();
 }
@@ -687,6 +838,7 @@ function showAddSubForm(catId){
     if(!val) return;
     nodes.push({ id: slugify(val), name: val, parentId: catId });
     await saveTree();
+    await publishGithubDataIfConfigured();
     renderTree();
   };
   btn.addEventListener('click', commit);
@@ -711,6 +863,7 @@ document.getElementById('newCatBtn').addEventListener('click', async ()=>{
     if(!val) return;
     nodes.push({ id: slugify(val), name: val, parentId: null, color: randomAccent() });
     await saveTree();
+    await publishGithubDataIfConfigured();
     renderTree();
   };
   btn.addEventListener('click', commit);
@@ -848,6 +1001,7 @@ function openAddForm(entries){
     if(!title) return;
     entries.push({ id: slugify(title), title, content: body, date: Date.now() });
     await saveEntries(selectedId, entries);
+    await publishGithubDataIfConfigured();
     slot.innerHTML='';
     renderTree();
     renderMain();
@@ -873,6 +1027,7 @@ function openEditForm(entry, entries){
     const idx = entries.findIndex(e=>e.id===entry.id);
     if(idx>-1) entries.splice(idx,1);
     await saveEntries(selectedId, entries);
+    await publishGithubDataIfConfigured();
     slot.innerHTML='';
     renderTree();
     renderMain();
@@ -884,6 +1039,7 @@ function openEditForm(entry, entries){
     if(!title) return;
     entry.title = title; entry.content = body;
     await saveEntries(selectedId, entries);
+    await publishGithubDataIfConfigured();
     slot.innerHTML='';
     renderMain();
   });
@@ -913,15 +1069,34 @@ document.getElementById('importDataFile').addEventListener('change', async (e)=>
   if(!file) return;
   try{
     await importDataFile(file);
+    await publishGithubDataIfConfigured();
     await ownerAlert('Import terminé', 'Les données ont été restaurées dans ce navigateur.');
   }catch(err){
     await ownerAlert('Import impossible', 'Le fichier choisi ne ressemble pas à une sauvegarde du grimoire.');
   }
 });
 
+document.getElementById('githubSyncBtn').addEventListener('click', async ()=>{
+  if(!await ensureOwnerUnlocked('configurer la synchronisation GitHub')) return;
+  const cfg = await githubSettingsDialog();
+  if(!cfg) return;
+  if(cfg.clear){
+    localStorage.removeItem(GITHUB_SYNC_KEY);
+    await ownerAlert('Sync désactivée', 'La configuration GitHub a été retirée de ce navigateur.');
+    return;
+  }
+  if(!cfg.owner || !cfg.repo || !cfg.branch || !cfg.token){
+    await ownerAlert('Configuration incomplète', 'Remplis le propriétaire, le dépôt, la branche et le token.');
+    return;
+  }
+  saveGithubConfig(cfg);
+  await publishGithubData();
+});
+
 (async function init(){
   updateOwnerUi();
   document.getElementById('main').innerHTML = `<div class="empty-state">${sigilSVG()}<div class="empty-text">Ouverture du registre…</div></div>`;
+  await useBundledDataIfNewer();
   await loadTree();
   renderTree();
   await renderMain();
