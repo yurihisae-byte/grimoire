@@ -319,8 +319,8 @@ function slugify(str){
 
 async function loadTree(){
   try{
-    const res = await window.storage.get(STORAGE_KEY, false);
-    nodes = res ? JSON.parse(res.value) : null;
+    const saved = await readStoredValue(STORAGE_KEY);
+    nodes = saved ? JSON.parse(saved) : null;
   }catch(e){
     nodes = null;
   }
@@ -331,20 +331,41 @@ async function loadTree(){
 }
 async function saveTree(){
   try{
-    await window.storage.set(STORAGE_KEY, JSON.stringify(nodes), false);
+    await writeStoredValue(STORAGE_KEY, JSON.stringify(nodes));
   }catch(e){ console.error('Erreur de sauvegarde de l\'arborescence', e); }
 }
 
 async function loadEntries(nodeId){
   try{
-    const res = await window.storage.get('entries:'+nodeId, false);
-    return res ? JSON.parse(res.value) : [];
+    const saved = await readStoredValue('entries:'+nodeId);
+    return saved ? JSON.parse(saved) : [];
   }catch(e){ return []; }
 }
 async function saveEntries(nodeId, arr){
   try{
-    await window.storage.set('entries:'+nodeId, JSON.stringify(arr), false);
+    await writeStoredValue('entries:'+nodeId, JSON.stringify(arr));
   }catch(e){ console.error('Erreur de sauvegarde des fiches', e); }
+}
+
+async function readStoredValue(key){
+  const localValue = localStorage.getItem(key);
+  if(localValue !== null) return localValue;
+
+  if(window.storage && typeof window.storage.get === 'function'){
+    const res = await window.storage.get(key, false);
+    if(res && typeof res.value === 'string'){
+      localStorage.setItem(key, res.value);
+      return res.value;
+    }
+  }
+  return null;
+}
+
+async function writeStoredValue(key, value){
+  localStorage.setItem(key, value);
+  if(window.storage && typeof window.storage.set === 'function'){
+    await window.storage.set(key, value, false);
+  }
 }
 
 function isOwnerUnlocked(){
