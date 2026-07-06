@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grimoire — Registre des Fléaux</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cinzel+Decorative:wght@700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#0a090d;
+    --panel:#131118;
+    --panel-2:#1b1822;
+    --parchment:#e9e1cc;
+    --muted:#8f8779;
+    --blood:#9a2a3a;
+    --blood-dim:#5c1c26;
+    --gold:#c39a52;
+    --gold-dim:#7a6535;
+    --line:#2a2732;
+    --shadow: 0 20px 60px rgba(0,0,0,.5);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(154,42,58,.08), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(195,154,82,.06), transparent 55%),
+      var(--void);
+    color:var(--parchment);
+    font-family:'EB Garamond', serif;
+    min-height:100vh;
+  }
+  ::selection{background:var(--blood-dim); color:var(--parchment);}
+  ::-webkit-scrollbar{width:10px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--line); border-radius:6px;}
+
+  .app{display:flex; min-height:100vh;}
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    width:300px; min-width:300px;
+    background:linear-gradient(180deg, var(--panel), #100e15);
+    border-right:1px solid var(--line);
+    padding:28px 18px 24px;
+    display:flex; flex-direction:column; gap:18px;
+    position:sticky; top:0; height:100vh; overflow-y:auto;
+  }
+  .brand{
+    display:flex; align-items:center; gap:12px;
+    padding:2px 6px 14px;
+    border-bottom:1px solid var(--line);
+  }
+  .brand-mark{width:34px; height:34px; flex:none;}
+  .brand-text{font-family:'Cinzel Decorative', serif; font-size:15px; letter-spacing:.14em; color:var(--gold);}
+  .brand-sub{font-family:'JetBrains Mono', monospace; font-size:9.5px; color:var(--muted); letter-spacing:.12em; text-transform:uppercase; margin-top:2px;}
+
+  .tree{display:flex; flex-direction:column; gap:6px; flex:1;}
+  .cat-block{border-radius:10px; overflow:hidden;}
+  .cat-row{
+    display:flex; align-items:center; gap:8px;
+    padding:10px 10px 10px 8px;
+    border-radius:9px;
+    cursor:pointer;
+    transition:background .15s ease;
+  }
+  .cat-row:hover{background:var(--panel-2);}
+  .cat-row.active{background:var(--panel-2); box-shadow:inset 3px 0 0 var(--accent-c, var(--gold));}
+  .chevron{
+    width:14px; height:14px; flex:none; color:var(--muted);
+    transition:transform .18s ease;
+  }
+  .cat-block.open > .cat-row .chevron{transform:rotate(90deg);}
+  .cat-dot{width:7px; height:7px; border-radius:50%; background:var(--accent-c, var(--gold)); flex:none; box-shadow:0 0 8px var(--accent-c, var(--gold));}
+  .cat-name{
+    font-family:'Cinzel', serif; font-size:14.5px; letter-spacing:.03em;
+    flex:1; color:var(--parchment);
+  }
+  .cat-count{font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--muted);}
+  .mini-btn{
+    width:20px; height:20px; border-radius:5px; border:1px solid transparent;
+    background:transparent; color:var(--muted); cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    font-size:14px; line-height:1; flex:none;
+    transition:all .15s ease;
+  }
+  .mini-btn:hover{background:var(--line); color:var(--parchment);}
+
+  .subtree{
+    max-height:0; overflow:hidden;
+    transition:max-height .25s ease;
+    padding-left:24px;
+    display:flex; flex-direction:column; gap:2px;
+  }
+  .cat-block.open .subtree{max-height:600px;}
+  .sub-row{
+    display:flex; align-items:center; gap:8px;
+    padding:8px 10px;
+    border-radius:8px; cursor:pointer;
+    font-family:'JetBrains Mono', monospace; font-size:12px;
+    color:var(--muted);
+    transition:background .15s ease, color .15s ease;
+    border-left:2px solid var(--line);
+  }
+  .sub-row:hover{background:var(--panel-2); color:var(--parchment);}
+  .sub-row.active{background:var(--panel-2); color:var(--parchment); border-left-color:var(--accent-c, var(--gold));}
+  .sub-row span.label{flex:1;}
+
+  .add-inline{
+    display:flex; gap:6px; padding:6px 8px 4px;
+  }
+  .add-inline input{
+    flex:1; background:var(--void); border:1px solid var(--line); color:var(--parchment);
+    border-radius:7px; padding:7px 9px; font-family:'JetBrains Mono', monospace; font-size:11.5px;
+    outline:none;
+  }
+  .add-inline input:focus{border-color:var(--gold-dim);}
+  .add-inline button{
+    background:var(--gold-dim); color:var(--parchment); border:none; border-radius:7px;
+    padding:0 10px; font-family:'JetBrains Mono', monospace; font-size:11px; cursor:pointer;
+  }
+  .add-inline button:hover{background:var(--gold);}
+
+  .new-cat-btn{
+    margin-top:auto;
+    display:flex; align-items:center; gap:8px; justify-content:center;
+    padding:11px; border-radius:9px; border:1px dashed var(--line);
+    background:transparent; color:var(--muted); cursor:pointer;
+    font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:.06em;
+    transition:all .15s ease;
+  }
+  .new-cat-btn:hover{border-color:var(--gold-dim); color:var(--gold); background:rgba(195,154,82,.05);}
+  .owner-bar{display:flex; gap:8px; margin-top:auto;}
+  .owner-bar .new-cat-btn{margin-top:0; flex:1;}
+  .lock-btn{
+    width:42px; border-radius:9px; border:1px solid var(--line);
+    background:transparent; color:var(--muted); cursor:pointer;
+    font-family:'JetBrains Mono', monospace; font-size:15px;
+    transition:all .15s ease;
+  }
+  .lock-btn:hover{border-color:var(--gold-dim); color:var(--gold); background:rgba(195,154,82,.05);}
+  .owner-locked .owner-only{display:none;}
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(10,9,13,.78);
+    display:flex; align-items:center; justify-content:center;
+    padding:20px; z-index:50;
+  }
+  .owner-dialog{
+    width:min(420px, 100%); background:var(--panel);
+    border:1px solid var(--line); border-radius:10px;
+    box-shadow:var(--shadow); padding:22px;
+  }
+  .owner-dialog h2{
+    margin:0 0 8px; font-family:'Cinzel', serif;
+    font-size:20px; color:var(--gold);
+  }
+  .owner-dialog p{margin:0 0 16px; color:var(--muted); line-height:1.5;}
+  .owner-dialog input{
+    width:100%; background:var(--void); border:1px solid var(--line);
+    color:var(--parchment); border-radius:8px; padding:11px 13px;
+    font-family:'JetBrains Mono', monospace; outline:none; margin-bottom:16px;
+  }
+  .owner-dialog input:focus{border-color:var(--gold-dim);}
+
+  /* ---------- Main ---------- */
+  .main{flex:1; padding:48px 56px; max-width:960px; margin:0 auto; width:100%;}
+
+  .breadcrumb{
+    font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--muted);
+    letter-spacing:.08em; text-transform:uppercase; margin-bottom:10px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .breadcrumb b{color:var(--gold); font-weight:500;}
+
+  .page-title{
+    font-family:'Cinzel', serif; font-size:38px; font-weight:600; letter-spacing:.01em;
+    margin:0 0 6px; color:var(--parchment);
+    border-bottom:1px solid var(--line); padding-bottom:20px;
+    display:flex; align-items:baseline; justify-content:space-between; gap:20px;
+  }
+  .page-meta{font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--muted); font-weight:400;}
+
+  .toolbar{display:flex; justify-content:flex-end; margin:20px 0 22px;}
+  .btn-primary{
+    background:linear-gradient(180deg, var(--blood), var(--blood-dim));
+    color:var(--parchment); border:1px solid var(--blood-dim);
+    padding:10px 18px; border-radius:8px; cursor:pointer;
+    font-family:'JetBrains Mono', monospace; font-size:12px; letter-spacing:.04em;
+    box-shadow:0 6px 18px rgba(154,42,58,.25);
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .btn-primary:hover{transform:translateY(-1px); box-shadow:0 10px 22px rgba(154,42,58,.35);}
+
+  .entry-form{
+    background:var(--panel-2); border:1px solid var(--line); border-radius:12px;
+    padding:20px; margin-bottom:22px; display:flex; flex-direction:column; gap:12px;
+  }
+  .entry-form input, .entry-form textarea{
+    background:var(--void); border:1px solid var(--line); color:var(--parchment);
+    border-radius:8px; padding:11px 13px; font-family:'EB Garamond', serif; font-size:15px;
+    outline:none; resize:vertical;
+  }
+  .entry-form input{font-family:'Cinzel', serif; font-size:16px;}
+  .entry-form input:focus, .entry-form textarea:focus{border-color:var(--gold-dim);}
+  .entry-form textarea{min-height:120px; line-height:1.55;}
+  .form-actions{display:flex; gap:10px; justify-content:flex-end;}
+  .btn-ghost{
+    background:transparent; border:1px solid var(--line); color:var(--muted);
+    padding:9px 16px; border-radius:8px; cursor:pointer; font-family:'JetBrains Mono', monospace; font-size:11.5px;
+  }
+  .btn-ghost:hover{border-color:var(--muted); color:var(--parchment);}
+  .btn-save{
+    background:var(--gold-dim); border:1px solid var(--gold-dim); color:var(--parchment);
+    padding:9px 18px; border-radius:8px; cursor:pointer; font-family:'JetBrains Mono', monospace; font-size:11.5px;
+  }
+  .btn-save:hover{background:var(--gold);}
+  .btn-danger{
+    background:transparent; border:1px solid var(--blood-dim); color:#c96b76;
+    padding:9px 16px; border-radius:8px; cursor:pointer; font-family:'JetBrains Mono', monospace; font-size:11.5px;
+    margin-right:auto;
+  }
+  .btn-danger:hover{background:var(--blood-dim); color:var(--parchment);}
+
+  .entries{display:flex; flex-direction:column; gap:16px;}
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent-c, var(--gold));
+    border-radius:10px; padding:20px 22px; cursor:pointer;
+    transition:border-color .15s ease, transform .12s ease;
+    position:relative;
+  }
+  .card:hover{transform:translateX(2px); border-left-color:var(--gold);}
+  .card-title{font-family:'Cinzel', serif; font-size:19px; margin:0 0 8px; color:var(--parchment);}
+  .card-date{font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--muted); position:absolute; top:20px; right:22px;}
+  .card-body{white-space:pre-wrap; line-height:1.65; color:#d8d0bb; font-size:16px;}
+
+  .empty-state{
+    display:flex; flex-direction:column; align-items:center; text-align:center;
+    padding:70px 20px 40px; gap:18px;
+  }
+  .sigil{width:220px; height:220px; opacity:.85;}
+  .sigil-ring{transform-origin:110px 110px; animation:spin 40s linear infinite;}
+  .sigil-ring.rev{animation-direction:reverse; animation-duration:60s;}
+  @media (prefers-reduced-motion:reduce){.sigil-ring{animation:none;}}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .empty-title{font-family:'Cinzel', serif; font-size:22px; color:var(--gold);}
+  .empty-text{color:var(--muted); font-size:15px; max-width:380px; line-height:1.6;}
+
+  .welcome .page-title{border-bottom:none;}
+  .grid-cats{
+    display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:10px;
+  }
+  .cat-tile{
+    background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    padding:26px; cursor:pointer; transition:all .15s ease; position:relative; overflow:hidden;
+  }
+  .cat-tile:hover{border-color:var(--gold-dim); transform:translateY(-2px);}
+  .cat-tile .tile-glow{position:absolute; inset:0; background:radial-gradient(200px 120px at 90% -20%, var(--accent-c, var(--gold)), transparent 70%); opacity:.12;}
+  .cat-tile h3{font-family:'Cinzel', serif; font-size:20px; margin:0 0 6px; position:relative;}
+  .cat-tile p{color:var(--muted); font-size:13px; margin:0; position:relative; font-family:'JetBrains Mono', monospace;}
+
+  @media (max-width:860px){
+    .app{flex-direction:column;}
+    .sidebar{width:100%; height:auto; position:relative; min-width:0;}
+    .main{padding:32px 20px;}
+    .grid-cats{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 40 40" fill="none">
+        <circle cx="20" cy="20" r="18" stroke="#c39a52" stroke-width="1.2"/>
+        <circle cx="20" cy="20" r="12" stroke="#9a2a3a" stroke-width="1"/>
+        <path d="M20 4 L20 36 M4 20 L36 20" stroke="#c39a52" stroke-width="0.6" opacity="0.6"/>
+        <path d="M20 8 L30 20 L20 32 L10 20 Z" stroke="#c39a52" stroke-width="1"/>
+      </svg>
+      <div>
+        <div class="brand-text">GRIMOIRE</div>
+        <div class="brand-sub">Registre occulte</div>
+      </div>
+    </div>
+
+    <div class="tree" id="tree"></div>
+
+    <div class="owner-bar">
+      <button class="new-cat-btn owner-only" id="newCatBtn">+ Nouvelle catégorie</button>
+      <button class="lock-btn" id="ownerLockBtn" title="Déverrouiller les modifications">🔒</button>
+    </div>
+  </aside>
+
+  <main class="main" id="main"></main>
+</div>
+
+<script>
+const STORAGE_KEY = 'category-tree';
+const OWNER_HASH_KEY = 'grimoire-owner-hash';
+const OWNER_SESSION_KEY = 'grimoire-owner-unlocked';
+let nodes = null;
+let selectedId = null;
+let openCats = new Set();
+
+const DEFAULT_NODES = [
+  { id:'fleau', name:'Fléau', parentId:null, color:'#9a2a3a' },
+  { id:'cours', name:'Cours', parentId:null, color:'#c39a52' },
+  { id:'negociation', name:'Négociation', parentId:'cours' },
+  { id:'energie-occulte', name:'Énergie occulte', parentId:'cours' },
+  { id:'sort-inne', name:'Sort inné', parentId:'cours' },
+  { id:'extension-territoire', name:'Extension du territoire', parentId:'cours' },
+  { id:'pactes-contrats', name:'Les pactes et contrats', parentId:'cours' },
+];
+
+function slugify(str){
+  return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') + '-' + Math.random().toString(36).slice(2,6);
+}
+
+async function loadTree(){
+  try{
+    const res = await window.storage.get(STORAGE_KEY, false);
+    nodes = res ? JSON.parse(res.value) : null;
+  }catch(e){
+    nodes = null;
+  }
+  if(!nodes){
+    nodes = DEFAULT_NODES;
+    await saveTree();
+  }
+}
+async function saveTree(){
+  try{
+    await window.storage.set(STORAGE_KEY, JSON.stringify(nodes), false);
+  }catch(e){ console.error('Erreur de sauvegarde de l\'arborescence', e); }
+}
+
+async function loadEntries(nodeId){
+  try{
+    const res = await window.storage.get('entries:'+nodeId, false);
+    return res ? JSON.parse(res.value) : [];
+  }catch(e){ return []; }
+}
+async function saveEntries(nodeId, arr){
+  try{
+    await window.storage.set('entries:'+nodeId, JSON.stringify(arr), false);
+  }catch(e){ console.error('Erreur de sauvegarde des fiches', e); }
+}
+
+function isOwnerUnlocked(){
+  return sessionStorage.getItem(OWNER_SESSION_KEY) === '1';
+}
+
+async function hashSecret(secret){
+  const data = new TextEncoder().encode(secret);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return [...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+function setOwnerUnlocked(value){
+  if(value) sessionStorage.setItem(OWNER_SESSION_KEY, '1');
+  else sessionStorage.removeItem(OWNER_SESSION_KEY);
+  updateOwnerUi();
+}
+
+function updateOwnerUi(){
+  const locked = !isOwnerUnlocked();
+  document.body.classList.toggle('owner-locked', locked);
+  const btn = document.getElementById('ownerLockBtn');
+  if(btn){
+    btn.textContent = locked ? '🔒' : '🔓';
+    btn.title = locked ? 'Déverrouiller les modifications' : 'Verrouiller les modifications';
+  }
+}
+
+function ownerDialog({ title, message, input=false, confirmText='Valider', danger=false }){
+  return new Promise(resolve=>{
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    const inputHtml = input ? '<input type="password" autocomplete="current-password" />' : '';
+    backdrop.innerHTML = `
+      <div class="owner-dialog" role="dialog" aria-modal="true">
+        <h2>${escapeHtml(title)}</h2>
+        <p>${escapeHtml(message)}</p>
+        ${inputHtml}
+        <div class="form-actions">
+          <button class="btn-ghost" data-action="cancel">Annuler</button>
+          <button class="${danger ? 'btn-danger' : 'btn-save'}" data-action="confirm">${escapeHtml(confirmText)}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    const field = backdrop.querySelector('input');
+    const close = (value)=>{
+      backdrop.remove();
+      resolve(value);
+    };
+    backdrop.querySelector('[data-action="cancel"]').addEventListener('click', ()=> close(null));
+    backdrop.querySelector('[data-action="confirm"]').addEventListener('click', ()=>{
+      close(input ? field.value : true);
+    });
+    backdrop.addEventListener('click', (e)=>{ if(e.target === backdrop) close(null); });
+    backdrop.addEventListener('keydown', (e)=>{
+      if(e.key === 'Escape') close(null);
+      if(e.key === 'Enter') close(input ? field.value : true);
+    });
+    if(field) field.focus();
+    else backdrop.querySelector('[data-action="confirm"]').focus();
+  });
+}
+
+async function ownerAlert(title, message){
+  await ownerDialog({ title, message, confirmText:'OK' });
+}
+
+async function ownerConfirm(title, message, confirmText='Supprimer'){
+  return await ownerDialog({ title, message, confirmText, danger:true }) === true;
+}
+
+async function ensureOwnerUnlocked(actionText='modifier'){
+  if(isOwnerUnlocked()) return true;
+
+  let storedHash = localStorage.getItem(OWNER_HASH_KEY);
+  if(!storedHash){
+    const created = await ownerDialog({
+      title:'Code propriétaire',
+      message:'Crée ton code propriétaire pour '+actionText+' le grimoire.',
+      input:true,
+      confirmText:'Créer'
+    });
+    if(!created) return false;
+    const confirmed = await ownerDialog({
+      title:'Confirmation',
+      message:'Confirme ton code propriétaire.',
+      input:true,
+      confirmText:'Confirmer'
+    });
+    if(created !== confirmed){
+      await ownerAlert('Code refusé', 'Les deux codes ne correspondent pas.');
+      return false;
+    }
+    storedHash = await hashSecret(created);
+    localStorage.setItem(OWNER_HASH_KEY, storedHash);
+    setOwnerUnlocked(true);
+    return true;
+  }
+
+  const entered = await ownerDialog({
+    title:'Accès verrouillé',
+    message:'Code propriétaire requis pour '+actionText+'.',
+    input:true,
+    confirmText:'Déverrouiller'
+  });
+  if(!entered) return false;
+  if(await hashSecret(entered) !== storedHash){
+    await ownerAlert('Code incorrect', 'Le code propriétaire est incorrect.');
+    return false;
+  }
+  setOwnerUnlocked(true);
+  return true;
+}
+
+function collectNodeAndDescendantIds(id){
+  const ids = [id];
+  children(id).forEach(child=>{
+    ids.push(...collectNodeAndDescendantIds(child.id));
+  });
+  return ids;
+}
+
+async function deleteNode(nodeId){
+  const node = findNode(nodeId);
+  if(!node) return;
+  const ids = collectNodeAndDescendantIds(nodeId);
+  const message = ids.length > 1
+    ? `Supprimer "${node.name}" et ses ${ids.length - 1} sous-catégorie(s) ? Les fiches liées seront aussi retirées.`
+    : `Supprimer "${node.name}" ? Les fiches liées seront aussi retirées.`;
+  if(!await ownerConfirm('Suppression', message)) return;
+
+  for(const id of ids){
+    await saveEntries(id, []);
+    openCats.delete(id);
+  }
+  nodes = nodes.filter(n=>!ids.includes(n.id));
+  if(ids.includes(selectedId)) selectedId = node.parentId && findNode(node.parentId) ? node.parentId : null;
+  await saveTree();
+  renderTree();
+  await renderMain();
+}
+
+function roots(){ return nodes.filter(n=>n.parentId===null); }
+function children(id){ return nodes.filter(n=>n.parentId===id); }
+function findNode(id){ return nodes.find(n=>n.id===id); }
+function colorOf(node){
+  if(node.color) return node.color;
+  if(node.parentId){ const p = findNode(node.parentId); return p ? colorOf(p) : '#c39a52'; }
+  return '#c39a52';
+}
+
+function renderTree(){
+  const tree = document.getElementById('tree');
+  tree.innerHTML = '';
+  roots().forEach(cat=>{
+    const block = document.createElement('div');
+    block.className = 'cat-block' + (openCats.has(cat.id) ? ' open' : '');
+
+    const row = document.createElement('div');
+    row.className = 'cat-row' + (selectedId===cat.id ? ' active' : '');
+    row.style.setProperty('--accent-c', colorOf(cat));
+    row.innerHTML = `
+      <svg class="chevron" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="cat-dot"></span>
+      <span class="cat-name">${escapeHtml(cat.name)}</span>
+    `;
+    const addBtn = document.createElement('button');
+    addBtn.className = 'mini-btn owner-only';
+    addBtn.title = 'Ajouter une sous-catégorie';
+    addBtn.textContent = '+';
+    addBtn.addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      if(!await ensureOwnerUnlocked('ajouter une sous-catégorie')) return;
+      openCats.add(cat.id);
+      showAddSubForm(cat.id);
+    });
+    row.appendChild(addBtn);
+
+    const deleteCatBtn = document.createElement('button');
+    deleteCatBtn.className = 'mini-btn owner-only';
+    deleteCatBtn.title = 'Supprimer cette catégorie';
+    deleteCatBtn.textContent = '×';
+    deleteCatBtn.addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      if(!await ensureOwnerUnlocked('supprimer une catégorie')) return;
+      await deleteNode(cat.id);
+    });
+    row.appendChild(deleteCatBtn);
+
+    row.addEventListener('click', ()=>{
+      selectedId = cat.id;
+      if(openCats.has(cat.id)) openCats.delete(cat.id); else openCats.add(cat.id);
+      renderTree();
+      renderMain();
+    });
+    block.appendChild(row);
+
+    const subtree = document.createElement('div');
+    subtree.className = 'subtree';
+    subtree.id = 'subtree-'+cat.id;
+    children(cat.id).forEach(sub=>{
+      const sr = document.createElement('div');
+      sr.className = 'sub-row' + (selectedId===sub.id ? ' active' : '');
+      sr.style.setProperty('--accent-c', colorOf(sub));
+      sr.innerHTML = `<span class="label">${escapeHtml(sub.name)}</span>`;
+      const deleteSubBtn = document.createElement('button');
+      deleteSubBtn.className = 'mini-btn owner-only';
+      deleteSubBtn.title = 'Supprimer cette sous-catégorie';
+      deleteSubBtn.textContent = '×';
+      deleteSubBtn.addEventListener('click', async (e)=>{
+        e.stopPropagation();
+        if(!await ensureOwnerUnlocked('supprimer une sous-catégorie')) return;
+        await deleteNode(sub.id);
+      });
+      sr.appendChild(deleteSubBtn);
+      sr.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        selectedId = sub.id;
+        renderTree();
+        renderMain();
+      });
+      subtree.appendChild(sr);
+    });
+    block.appendChild(subtree);
+    tree.appendChild(block);
+  });
+}
+
+function showAddSubForm(catId){
+  const subtree = document.getElementById('subtree-'+catId);
+  if(!subtree || subtree.querySelector('.add-inline')) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'add-inline';
+  wrap.innerHTML = `<input type="text" placeholder="Nom de la sous-catégorie…" />`;
+  const btn = document.createElement('button');
+  btn.textContent = 'Ajouter';
+  wrap.appendChild(btn);
+  subtree.appendChild(wrap);
+  const input = wrap.querySelector('input');
+  input.focus();
+  const commit = async ()=>{
+    const val = input.value.trim();
+    if(!val) return;
+    nodes.push({ id: slugify(val), name: val, parentId: catId });
+    await saveTree();
+    renderTree();
+  };
+  btn.addEventListener('click', commit);
+  input.addEventListener('keydown', (e)=>{ if(e.key==='Enter') commit(); if(e.key==='Escape') wrap.remove(); });
+}
+
+document.getElementById('newCatBtn').addEventListener('click', async ()=>{
+  if(!await ensureOwnerUnlocked('ajouter une catégorie')) return;
+  const existing = document.querySelector('.tree > .add-inline');
+  if(existing) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'add-inline';
+  wrap.innerHTML = `<input type="text" placeholder="Nom de la catégorie…" />`;
+  const btn = document.createElement('button');
+  btn.textContent = 'Ajouter';
+  wrap.appendChild(btn);
+  document.getElementById('tree').appendChild(wrap);
+  const input = wrap.querySelector('input');
+  input.focus();
+  const commit = async ()=>{
+    const val = input.value.trim();
+    if(!val) return;
+    nodes.push({ id: slugify(val), name: val, parentId: null, color: randomAccent() });
+    await saveTree();
+    renderTree();
+  };
+  btn.addEventListener('click', commit);
+  input.addEventListener('keydown', (e)=>{ if(e.key==='Enter') commit(); if(e.key==='Escape') wrap.remove(); });
+});
+
+function randomAccent(){
+  const palette = ['#9a2a3a','#c39a52','#5b6b8c','#6b4c78','#3f7a5e'];
+  return palette[Math.floor(Math.random()*palette.length)];
+}
+
+function escapeHtml(s){
+  const d = document.createElement('div'); d.textContent = s; return d.innerHTML;
+}
+
+function breadcrumbFor(node){
+  if(!node) return '';
+  if(node.parentId){
+    const p = findNode(node.parentId);
+    return `<b>${escapeHtml(p.name)}</b> / ${escapeHtml(node.name)}`;
+  }
+  return `<b>${escapeHtml(node.name)}</b>`;
+}
+
+function sigilSVG(){
+  return `
+  <svg class="sigil" viewBox="0 0 220 220" fill="none">
+    <g class="sigil-ring">
+      <circle cx="110" cy="110" r="95" stroke="#c39a52" stroke-width="1"/>
+      <circle cx="110" cy="110" r="88" stroke="#c39a52" stroke-width="0.5" stroke-dasharray="2 6"/>
+    </g>
+    <g class="sigil-ring rev">
+      <polygon points="110,30 178,150 42,150" stroke="#9a2a3a" stroke-width="1" fill="none"/>
+      <polygon points="110,190 42,70 178,70" stroke="#9a2a3a" stroke-width="1" fill="none" opacity="0.7"/>
+    </g>
+    <circle cx="110" cy="110" r="55" stroke="#c39a52" stroke-width="0.8"/>
+    <circle cx="110" cy="110" r="4" fill="#c39a52"/>
+  </svg>`;
+}
+
+async function renderMain(){
+  const main = document.getElementById('main');
+
+  if(!selectedId){
+    main.className = 'main welcome';
+    main.innerHTML = `
+      <div class="page-title">Le registre attend<span class="page-meta">${nodes.length} entrées d'arborescence</span></div>
+      <p style="color:var(--muted); font-size:15px; max-width:560px; line-height:1.6; margin-top:14px;">
+        Choisissez une catégorie dans la marge, ou ouvrez-en une nouvelle. Chaque catégorie peut recevoir
+        ses propres sous-catégories et fiches, à tout moment.
+      </p>
+      <div class="grid-cats">
+        ${roots().map(c=>`
+          <div class="cat-tile" data-id="${c.id}" style="--accent-c:${colorOf(c)}">
+            <div class="tile-glow"></div>
+            <h3>${escapeHtml(c.name)}</h3>
+            <p>${children(c.id).length} sous-catégorie(s)</p>
+          </div>`).join('')}
+      </div>
+      <div class="empty-state">${sigilSVG()}</div>
+    `;
+    main.querySelectorAll('.cat-tile').forEach(t=>{
+      t.addEventListener('click', ()=>{
+        selectedId = t.dataset.id;
+        openCats.add(t.dataset.id);
+        renderTree();
+        renderMain();
+      });
+    });
+    return;
+  }
+
+  main.className = 'main';
+  const node = findNode(selectedId);
+  const accent = colorOf(node);
+  const entries = await loadEntries(selectedId);
+
+  main.innerHTML = `
+    <div class="breadcrumb">${breadcrumbFor(node)}</div>
+    <div class="page-title" style="--accent-c:${accent}">
+      ${escapeHtml(node.name)}
+      <span class="page-meta">${entries.length} fiche${entries.length!==1?'s':''}</span>
+    </div>
+    <div class="toolbar"><button class="btn-primary owner-only" id="addEntryBtn">+ Ajouter une fiche</button></div>
+    <div id="formSlot"></div>
+    <div class="entries" id="entriesList"></div>
+  `;
+
+  const entriesList = document.getElementById('entriesList');
+  if(entries.length === 0){
+    entriesList.innerHTML = `
+      <div class="empty-state" style="padding-top:20px;">
+        ${sigilSVG()}
+        <div class="empty-title">Aucune fiche pour l'instant</div>
+        <div class="empty-text">Consignez ici tout ce qui concerne « ${escapeHtml(node.name)} » : descriptions, mécanismes, exemples, notes de terrain.</div>
+      </div>`;
+  } else {
+    entries.slice().reverse().forEach(entry=>{
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.style.setProperty('--accent-c', accent);
+      card.innerHTML = `
+        <div class="card-date">${new Date(entry.date).toLocaleDateString('fr-FR')}</div>
+        <h3 class="card-title">${escapeHtml(entry.title)}</h3>
+        <div class="card-body">${escapeHtml(entry.content)}</div>
+      `;
+      card.addEventListener('click', ()=> openEditForm(entry, entries));
+      entriesList.appendChild(card);
+    });
+  }
+
+  document.getElementById('addEntryBtn').addEventListener('click', async ()=>{
+    if(!await ensureOwnerUnlocked('ajouter une fiche')) return;
+    openAddForm(entries);
+  });
+}
+
+function openAddForm(entries){
+  const slot = document.getElementById('formSlot');
+  if(slot.querySelector('.entry-form')) return;
+  slot.innerHTML = `
+    <div class="entry-form">
+      <input type="text" id="fTitle" placeholder="Titre de la fiche…" />
+      <textarea id="fBody" placeholder="Décrivez ici…"></textarea>
+      <div class="form-actions">
+        <button class="btn-ghost" id="fCancel">Annuler</button>
+        <button class="btn-save owner-only" id="fSave">Enregistrer</button>
+      </div>
+    </div>`;
+  document.getElementById('fCancel').addEventListener('click', ()=> slot.innerHTML='');
+  document.getElementById('fSave').addEventListener('click', async ()=>{
+    if(!await ensureOwnerUnlocked('ajouter une fiche')) return;
+    const title = document.getElementById('fTitle').value.trim();
+    const body = document.getElementById('fBody').value.trim();
+    if(!title) return;
+    entries.push({ id: slugify(title), title, content: body, date: Date.now() });
+    await saveEntries(selectedId, entries);
+    slot.innerHTML='';
+    renderTree();
+    renderMain();
+  });
+}
+
+function openEditForm(entry, entries){
+  const slot = document.getElementById('formSlot');
+  slot.innerHTML = `
+    <div class="entry-form">
+      <input type="text" id="fTitle" value="${escapeHtml(entry.title)}" />
+      <textarea id="fBody">${escapeHtml(entry.content)}</textarea>
+      <div class="form-actions">
+        <button class="btn-danger owner-only" id="fDelete">Supprimer</button>
+        <button class="btn-ghost" id="fCancel">Annuler</button>
+        <button class="btn-save owner-only" id="fSave">Enregistrer</button>
+      </div>
+    </div>`;
+  slot.scrollIntoView({behavior:'smooth', block:'center'});
+  document.getElementById('fCancel').addEventListener('click', ()=> slot.innerHTML='');
+  document.getElementById('fDelete').addEventListener('click', async ()=>{
+    if(!await ensureOwnerUnlocked('supprimer une fiche')) return;
+    const idx = entries.findIndex(e=>e.id===entry.id);
+    if(idx>-1) entries.splice(idx,1);
+    await saveEntries(selectedId, entries);
+    slot.innerHTML='';
+    renderTree();
+    renderMain();
+  });
+  document.getElementById('fSave').addEventListener('click', async ()=>{
+    if(!await ensureOwnerUnlocked('modifier une fiche')) return;
+    const title = document.getElementById('fTitle').value.trim();
+    const body = document.getElementById('fBody').value.trim();
+    if(!title) return;
+    entry.title = title; entry.content = body;
+    await saveEntries(selectedId, entries);
+    slot.innerHTML='';
+    renderMain();
+  });
+}
+
+document.getElementById('ownerLockBtn').addEventListener('click', async ()=>{
+  if(isOwnerUnlocked()){
+    setOwnerUnlocked(false);
+    return;
+  }
+  await ensureOwnerUnlocked('modifier le grimoire');
+});
+
+(async function init(){
+  updateOwnerUi();
+  document.getElementById('main').innerHTML = `<div class="empty-state">${sigilSVG()}<div class="empty-text">Ouverture du registre…</div></div>`;
+  await loadTree();
+  renderTree();
+  await renderMain();
+})();
+</script>
+</body>
+</html>
