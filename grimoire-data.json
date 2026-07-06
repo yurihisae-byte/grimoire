@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "exportedAt": "2026-07-06T00:00:00.000Z",
+  "nodes": [
+    {
+      "id": "fleau",
+      "name": "Fléau",
+      "parentId": null,
+      "color": "#9a2a3a"
+    },
+    {
+      "id": "cours",
+      "name": "Cours",
+      "parentId": null,
+      "color": "#c39a52"
+    },
+    {
+      "id": "negociation",
+      "name": "Négociation",
+      "parentId": "cours"
+    },
+    {
+      "id": "energie-occulte",
+      "name": "Énergie occulte",
+      "parentId": "cours"
+    },
+    {
+      "id": "sort-inne",
+      "name": "Sort inné",
+      "parentId": "cours"
+    },
+    {
+      "id": "extension-territoire",
+      "name": "Extension du territoire",
+      "parentId": "cours"
+    },
+    {
+      "id": "pactes-contrats",
+      "name": "Les pactes et contrats",
+      "parentId": "cours"
+    }
+  ],
+  "entries": {
+    "fleau": [],
+    "cours": [],
+    "negociation": [],
+    "energie-occulte": [],
+    "sort-inne": [],
+    "extension-territoire": [],
+    "pactes-contrats": []
+  }
+}
