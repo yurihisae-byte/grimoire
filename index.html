@@ -133,6 +133,8 @@
   .new-cat-btn:hover{border-color:var(--gold-dim); color:var(--gold); background:rgba(195,154,82,.05);}
   .owner-bar{display:flex; gap:8px; margin-top:auto;}
   .owner-bar .new-cat-btn{margin-top:0; flex:1;}
+  .data-tools{display:flex; gap:8px;}
+  .data-tools .new-cat-btn{margin-top:0; flex:1; padding:9px 8px; font-size:10px;}
   .lock-btn{
     width:42px; border-radius:9px; border:1px solid var(--line);
     background:transparent; color:var(--muted); cursor:pointer;
@@ -285,6 +287,12 @@
 
     <div class="tree" id="tree"></div>
 
+    <div class="data-tools owner-only">
+      <button class="new-cat-btn" id="exportDataBtn">Exporter data</button>
+      <button class="new-cat-btn" id="importDataBtn">Importer data</button>
+      <input type="file" id="importDataFile" accept="application/json" hidden>
+    </div>
+
     <div class="owner-bar">
       <button class="new-cat-btn owner-only" id="newCatBtn">+ Nouvelle catégorie</button>
       <button class="lock-btn" id="ownerLockBtn" title="Déverrouiller les modifications">🔒</button>
@@ -296,11 +304,13 @@
 
 <script>
 const STORAGE_KEY = 'category-tree';
+const DATA_FILE = 'data/grimoire-data.json';
 const OWNER_HASH_KEY = 'grimoire-owner-hash';
 const OWNER_SESSION_KEY = 'grimoire-owner-unlocked';
 let nodes = null;
 let selectedId = null;
 let openCats = new Set();
+let bundledData = null;
 
 const DEFAULT_NODES = [
   { id:'fleau', name:'Fléau', parentId:null, color:'#9a2a3a' },
@@ -317,6 +327,19 @@ function slugify(str){
     .replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') + '-' + Math.random().toString(36).slice(2,6);
 }
 
+async function loadBundledData(){
+  if(bundledData !== null) return bundledData;
+  try{
+    const res = await fetch(DATA_FILE, { cache:'no-store' });
+    if(!res.ok) throw new Error('Data file not found');
+    const data = await res.json();
+    bundledData = data && typeof data === 'object' ? data : {};
+  }catch(e){
+    bundledData = {};
+  }
+  return bundledData;
+}
+
 async function loadTree(){
   try{
     const saved = await readStoredValue(STORAGE_KEY);
@@ -325,7 +348,11 @@ async function loadTree(){
     nodes = null;
   }
   if(!nodes){
-    nodes = DEFAULT_NODES;
+    const data = await loadBundledData();
+    nodes = Array.isArray(data.nodes) ? data.nodes : null;
+  }
+  if(!nodes){
+    nodes = DEFAULT_NODES.slice();
     await saveTree();
   }
 }
@@ -338,7 +365,10 @@ async function saveTree(){
 async function loadEntries(nodeId){
   try{
     const saved = await readStoredValue('entries:'+nodeId);
-    return saved ? JSON.parse(saved) : [];
+    if(saved) return JSON.parse(saved);
+    const data = await loadBundledData();
+    if(data.entries && Array.isArray(data.entries[nodeId])) return data.entries[nodeId];
+    return [];
   }catch(e){ return []; }
 }
 async function saveEntries(nodeId, arr){
@@ -366,6 +396,51 @@ async function writeStoredValue(key, value){
   if(window.storage && typeof window.storage.set === 'function'){
     await window.storage.set(key, value, false);
   }
+}
+
+async function collectAllData(){
+  const entries = {};
+  for(const node of nodes){
+    entries[node.id] = await loadEntries(node.id);
+  }
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    nodes,
+    entries
+  };
+}
+
+async function exportDataFile(){
+  const data = await collectAllData();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'grimoire-data.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  await ownerAlert('Export terminé', 'Place le fichier téléchargé dans le dossier data/ de ton dépôt GitHub, sous le nom grimoire-data.json.');
+}
+
+async function importDataFile(file){
+  const text = await file.text();
+  const data = JSON.parse(text);
+  if(!data || !Array.isArray(data.nodes) || !data.entries || typeof data.entries !== 'object'){
+    throw new Error('Format de sauvegarde invalide');
+  }
+  nodes = data.nodes;
+  await saveTree();
+  for(const node of nodes){
+    await saveEntries(node.id, Array.isArray(data.entries[node.id]) ? data.entries[node.id] : []);
+  }
+  bundledData = data;
+  selectedId = null;
+  openCats.clear();
+  renderTree();
+  await renderMain();
 }
 
 function isOwnerUnlocked(){
@@ -820,6 +895,28 @@ document.getElementById('ownerLockBtn').addEventListener('click', async ()=>{
     return;
   }
   await ensureOwnerUnlocked('modifier le grimoire');
+});
+
+document.getElementById('exportDataBtn').addEventListener('click', async ()=>{
+  if(!await ensureOwnerUnlocked('exporter les données')) return;
+  await exportDataFile();
+});
+
+document.getElementById('importDataBtn').addEventListener('click', async ()=>{
+  if(!await ensureOwnerUnlocked('importer les données')) return;
+  document.getElementById('importDataFile').click();
+});
+
+document.getElementById('importDataFile').addEventListener('change', async (e)=>{
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  try{
+    await importDataFile(file);
+    await ownerAlert('Import terminé', 'Les données ont été restaurées dans ce navigateur.');
+  }catch(err){
+    await ownerAlert('Import impossible', 'Le fichier choisi ne ressemble pas à une sauvegarde du grimoire.');
+  }
 });
 
 (async function init(){
